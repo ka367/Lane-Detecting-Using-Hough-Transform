@@ -440,15 +440,16 @@ void linedetect( RGB_IMAGE& src, RGB_IMAGE& dst, int threshold_low) {
 
 void image_filter(AXI_STREAM& input, AXI_STREAM& output, int rows, int cols) {
 
-unsigned char element_hd; //Inserted this line Akshay
+unsigned char element_hd; //Inserted this line 
 float a,b,x0;
 int p,q;
 ap_fixed<16,2> c,s;
 typedef ap_fixed<12,12> pxtype;
 pxtype y0,d;
+
 //ap_fixed<16,3> theta;
 //ap_fixed<12,12> mag;  
-unsigned char pixelh_val;
+//unsigned char pixelh_val;
     //Create AXI streaming interfaces for the core
 #pragma HLS RESOURCE variable=input core=AXIS metadata="-bus_bundle INPUT_STREAM"
 #pragma HLS RESOURCE variable=output core=AXIS metadata="-bus_bundle OUTPUT_STREAM"
@@ -470,26 +471,22 @@ unsigned char pixelh_val;
     RGB_IMAGE_16 grad_gd(rows, cols);
     RGB_IMAGE suppressed(rows, cols);
     RGB_IMAGE canny_edges(rows, cols);
-    RGB_IMAGE canny_edges1(rows, cols);    //inserted these lines Akshay
+    RGB_IMAGE canny_edges1(rows, cols);    //inserted these lines 
     RGB_IMAGE canny_edges2(rows, cols);
     RGB_IMAGE canny_edges5(rows, cols);
-    RGB_IMAGE f1(rows, cols);
-    RGB_IMAGE f2(rows, cols);
+    RGB_IMAGE srcimage1(rows, cols);
+    RGB_IMAGE srcimage2(rows, cols);
     RGB_PIXEL pix(50, 50, 50);
-    RGB_IMAGE f3(rows, cols);
-
-#pragma HLS interface ap_fifo port=canny_edges1
-#pragma HLS interface ap_fifo port=canny_edges2
+    RGB_IMAGE finalimage(rows, cols);
 
 
-
-   
+  
 //#pragma HLS dataflow
     // AXI to RGB_IMAGE stream
 	hls::AXIvideo2Mat( input, src );
-        hls::Duplicate(src, f1, f2);
+        hls::Duplicate(src, srcimage1, srcimage2);
   // Grayscaling
-	hls::CvtColor<HLS_RGB2GRAY>( f1, src_bw );
+	hls::CvtColor<HLS_RGB2GRAY>( srcimage1, src_bw );
 	// Gaussian Blur Noise Reduction
 	hls::GaussianBlur<5,5>( src_bw, src_blur, 1.4, 1.4 );
 	// Duplicate the streams
@@ -502,23 +499,23 @@ unsigned char pixelh_val;
 	// Perform non-maximum suppression for edge thinning
 	nonmax_suppression( grad_gd, suppressed );
 	// Perform hysteresis thresholding for edge tracing
-	hysteresis( suppressed, canny_edges, 50, 140 );
+	hysteresis( suppressed, canny_edges, 100, 140 );
 
 	hls::Duplicate( canny_edges, canny_edges1, canny_edges2);   //making multiple copies of canny edges for future purposes
-
-        hls::Polar_< ap_fixed<16,3>, ap_fixed<12,12> > lines[500];                       //Hough transform
-        hls::HoughLines2<1, 5>(canny_edges1, lines, 500);
+  
+  hls::Polar_< ap_fixed<16,3>, ap_fixed<12,12> > lines[500];                       //Hough transform
+  hls::HoughLines2<1,8>(canny_edges1, lines, 500);
   
      
   hls::Scalar<3, unsigned char>pixelh;       //pixel to add to hough image
   hls::Scalar<3, unsigned char>pixela;       //pixel to read image
+  //Stream the canny_edge source into a scalar format 
   
     for(pxtype y=0;y<480;y++)
     {
     for(pxtype x=0;x<640;x++)
     {
-#pragma HLS LOOP_FLATTEN OFF
-#pragma HLS DEPENDENCE array inter false
+
 #pragma HLS PIPELINE 
    canny_edges2 >> pixela;
     
@@ -530,8 +527,8 @@ unsigned char pixelh_val;
 //    theta = lines[i].angle;
 //    mag = lines[i].rho;
     cordic(lines[i].angle, s, c);
-    y0 = (lines[i].rho - x*c) /s;
-    d = y-y0;
+    y0 = (lines[i].rho - x*c) /s;                      // We use the equation  rho = xcos(theta) + ySin(theta)  So we iterate throught the image to find out the (x,y) that match
+    d = y-y0;                                         //the rho,theta generated from houghlines and stored in lines.
     if(( d<=0) && ( y > 240))
     //if((d <= 500) && (y > 540 && (x <350 || x> 1300)))
     p = 1;
@@ -551,13 +548,12 @@ unsigned char pixelh_val;
     pixelh.val[0] = 0;
     }
     canny_edges5 << pixelh;
-    //f2<< pixelh;
     }
     }   
 
     hls::Scalar<3, unsigned char> color(0,0,255);
-   hls::PaintMask(f2,canny_edges5,f3,color); 
+   hls::PaintMask(srcimage2,canny_edges5,finalimage,color); 
 	// RGB_IMAGE to AXI stream   
 
-    hls::Mat2AXIvideo(f3, output );
+    hls::Mat2AXIvideo(finalimage, output );
 }

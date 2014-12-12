@@ -82,28 +82,13 @@ void opencv_image_filter(IplImage* src, IplImage* dst) {
 	cv::Mat dstMat(dst);
         //cv::Mat cdstMat(dst);
 
-/*  cv::Mat segmented, gray, edges;
-
-
-cv::pyrMeanShiftFiltering(srcMat, dstMat, 15, 40);
-cv::cvtColor(dstMat, gray);
-cv::Canny(gray, edges, 150, 150);
-cv::cvtColor(edges, edgesBgr, CV_GRAY2BGR);
-//cv::Mat result = bgr - edgesBgr;   */
-
-
-
-
-
-
-
 
 	// Convert to grayscale (1 channel)
 	cvtColor(srcMat, dstMat, CV_BGR2GRAY);
 	// Perform Gaussian Blur with 5x5 kernel and sigma of 1.4
 	cv::GaussianBlur(dstMat, dstMat, cv::Size(5,5), 1.4, 1.4);
 	// Perform Canny filtering
-        Canny(dstMat, dstMat, 220, 230);
+        Canny(dstMat, dstMat, 100, 140);
 	// Convert back to RGB (3 channel)
 //	cvtColor(dstMat, dstMat, CV_GRAY2RGB, src->nChannels);
        
@@ -129,7 +114,7 @@ cv::cvtColor(edges, edgesBgr, CV_GRAY2BGR);
 
 
  vector<Vec4i> lines;
-  HoughLinesP(dstMat, lines, 1, CV_PI/180, 1000, 20000, 5 );
+  HoughLinesP(dstMat, lines, 1, CV_PI/180, 1000, 2000, 5 );
   for( size_t i = 0; i < lines.size(); i++ )
   {
     Vec4i l = lines[i];
@@ -149,12 +134,6 @@ cv::cvtColor(edges, edgesBgr, CV_GRAY2BGR);
 
    // imshow("original", srcMat);   
     //imshow("detected lines", dstMat);
-
-
-
-
-
-
 
 
 
