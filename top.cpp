@@ -142,7 +142,7 @@ void nonmax_suppression(RGB_IMAGE_16& gd, RGB_IMAGE& dst) {
 	HLS_SIZE_T cols = gd.cols;
 
 	// Line buffer can only handle images of up to 1920 pixels wide
-	hls::LineBuffer<2, 1920, unsigned short> linebuff;
+	hls::LineBuffer<2, 640, unsigned short> linebuff;
 	// 3x3 computation kernel
 	hls::Window<3, 3, unsigned short> win;                         //edited this line
 	
@@ -249,7 +249,7 @@ void hysteresis( RGB_IMAGE& src, RGB_IMAGE& dst, int threshold_low, int threshol
 	HLS_SIZE_T cols = src.cols;
 
 	// Line buffer can only handle images of up to 1920 pixels wide
-	hls::LineBuffer<2, 1920, unsigned char> linebuff;
+	hls::LineBuffer<2, 640, unsigned char> linebuff;
 	// 3x3 computation kernel
 	hls::Window<3, 3, unsigned char> win;
 	
@@ -337,17 +337,8 @@ void hysteresis( RGB_IMAGE& src, RGB_IMAGE& dst, int threshold_low, int threshol
 }
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 /*
-void linedetect( RGB_IMAGE& src, RGB_IMAGE& dst, ap_fixed<16,3> lines[].angle, ap_fixed<12,12> lines[].rho) {
+void linedetect( RGB_IMAGE& src, RGB_IMAGE& dst, int threshold_low) {
 
-
-float a,b,x0;
-int p,q;
-ap_fixed<16,2> c,s;
-typedef ap_fixed<12,12> pxtype;
-pxtype y0,d;
-ap_fixed<16,3> theta;
-ap_fixed<12,12> mag;
-	
 	HLS_SIZE_T rows = src.rows;
 	HLS_SIZE_T cols = src.cols;
 
@@ -356,8 +347,8 @@ ap_fixed<12,12> mag;
 	// 3x3 computation kernel
 	hls::Window<3, 3, unsigned char> win;
 	
+	hls::Scalar<3, unsigned char> pixel_gd;
 	hls::Scalar<3, unsigned char> out_pixel;
-	hls::Scalar<3, unsigned char> pixela;
 
 	unsigned char element_gd;
 	    
@@ -368,7 +359,6 @@ ap_fixed<12,12> mag;
 	unsigned char gb;
 	unsigned char tmp0;
 	unsigned char tmp1;
-  
 
 	for( HLS_SIZE_T i = 0; i < rows+1; i++ ) {
 		for( HLS_SIZE_T j = 0; j < cols+1; j++ ) {
@@ -378,8 +368,8 @@ ap_fixed<12,12> mag;
 
 		  // read pixels from the input stream only if within the bounds of the image
 		  if ( i < rows && j < cols ) {
-		    src >> pixela;
-			element_gd = pixela.val[0];
+		    src >> pixel_gd;
+			element_gd = pixel_gd.val[0];
 		  }
 	   
 		  // Save the values in the line buffer
@@ -405,45 +395,32 @@ ap_fixed<12,12> mag;
 			win.insert( tmp1, 2, 0 );
 		  }
 
-		  // Calculate if this pixel is an edge by comparing it to 
+
+			  // Calculate if this pixel is an edge by comparing it to 
 		  // the high and low thresholds and its neighbors in the kernel
 		  // Only calculate an output if the entire kernel uses valid pixels
 		  if( i <= 1 || j <= 1 || i > rows-1 || j > cols-1 ) {
 			out_pixel_val = 0;
 		  }
 		  else {
-         p=0;
-    if(pixela.val[0] != 0)
-    {
-    for(int i=0;i<500;i++)
-    {
-//    theta = lines[i].angle;
-//    mag = lines[i].rho;
-    cordic(lines[i].angle, s, c);
-    y0 = (lines[i].rho - j*c) /s;
-    d = i-y0;
-    
-    if(d == 0)
-    p = 1;
-    
-    if(p==1)
-    {
-    out_pixel_val = 255;
-
-    }
-    }
-    else
-    {
-    out_pixel_val = 0;
-    }
-    }
-    else
-    {
-   out_pixel_val = 0;
-    }
-      
-     
-   }		
+			if( win.getval(1,1) < threshold_low ){
+			  out_pixel_val = 0;
+			}
+			else if( ((i>550) && (j>750 || j <350)) &&	(win.getval(1,1) == threshold_low || 
+						win.getval(0,0) == threshold_low  || 
+						win.getval(0,1) == threshold_low  || 
+						win.getval(0,2) == threshold_low  || 
+						win.getval(1,0) == threshold_low  || 
+						win.getval(1,2) == threshold_low  || 
+						win.getval(2,0) == threshold_low  || 
+						win.getval(2,1) == threshold_low  || 
+						win.getval(2,2) == threshold_low)  ) {
+			  out_pixel_val = 255;
+			}
+			else {
+			  out_pixel_val = 0;
+			} 
+		  }		
 		  
 		  // Output a pixel only if it is part of the actual image
 		  if( j > 0 && i > 0 ) {
@@ -453,8 +430,8 @@ ap_fixed<12,12> mag;
 		}
 	}
 }
- 
-*/
+ */
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
@@ -469,9 +446,9 @@ int p,q;
 ap_fixed<16,2> c,s;
 typedef ap_fixed<12,12> pxtype;
 pxtype y0,d;
-ap_fixed<16,3> theta;
-ap_fixed<12,12> mag;  
-
+//ap_fixed<16,3> theta;
+//ap_fixed<12,12> mag;  
+unsigned char pixelh_val;
     //Create AXI streaming interfaces for the core
 #pragma HLS RESOURCE variable=input core=AXIS metadata="-bus_bundle INPUT_STREAM"
 #pragma HLS RESOURCE variable=output core=AXIS metadata="-bus_bundle OUTPUT_STREAM"
@@ -492,7 +469,6 @@ ap_fixed<12,12> mag;
     RGB_IMAGE sobel_gy(rows, cols);
     RGB_IMAGE_16 grad_gd(rows, cols);
     RGB_IMAGE suppressed(rows, cols);
-    RGB_IMAGE thresholded(rows, cols);
     RGB_IMAGE canny_edges(rows, cols);
     RGB_IMAGE canny_edges1(rows, cols);    //inserted these lines Akshay
     RGB_IMAGE canny_edges2(rows, cols);
@@ -501,8 +477,14 @@ ap_fixed<12,12> mag;
     RGB_IMAGE f2(rows, cols);
     RGB_PIXEL pix(50, 50, 50);
     RGB_IMAGE f3(rows, cols);
-    
-#pragma HLS dataflow
+
+#pragma HLS interface ap_fifo port=canny_edges1
+#pragma HLS interface ap_fifo port=canny_edges2
+
+
+
+   
+//#pragma HLS dataflow
     // AXI to RGB_IMAGE stream
 	hls::AXIvideo2Mat( input, src );
         hls::Duplicate(src, f1, f2);
@@ -520,30 +502,24 @@ ap_fixed<12,12> mag;
 	// Perform non-maximum suppression for edge thinning
 	nonmax_suppression( grad_gd, suppressed );
 	// Perform hysteresis thresholding for edge tracing
-	hysteresis( suppressed, canny_edges, 160, 220 );
+	hysteresis( suppressed, canny_edges, 50, 140 );
 
 	hls::Duplicate( canny_edges, canny_edges1, canny_edges2);   //making multiple copies of canny edges for future purposes
-	hls::Polar_< ap_fixed<16,3>, ap_fixed<12,12> > lines[500];                       //Hough transform
-  hls::HoughLines2<1, 5>(canny_edges1, lines, 300);
-  
-  
- // linedetect(canny_edges2, canny_edges5, lines[].angle, lines[].rho);
-  
-  
 
+        hls::Polar_< ap_fixed<16,3>, ap_fixed<12,12> > lines[500];                       //Hough transform
+        hls::HoughLines2<1, 5>(canny_edges1, lines, 500);
+  
+     
   hls::Scalar<3, unsigned char>pixelh;       //pixel to add to hough image
   hls::Scalar<3, unsigned char>pixela;       //pixel to read image
   
-    for(pxtype y=0;y<1080;y++)
+    for(pxtype y=0;y<480;y++)
     {
-    for(pxtype x=0;x<1920;x++)
+    for(pxtype x=0;x<640;x++)
     {
 #pragma HLS LOOP_FLATTEN OFF
-
-    
-    
-    
-    
+#pragma HLS DEPENDENCE array inter false
+#pragma HLS PIPELINE 
    canny_edges2 >> pixela;
     
     p=0;
@@ -556,13 +532,13 @@ ap_fixed<12,12> mag;
     cordic(lines[i].angle, s, c);
     y0 = (lines[i].rho - x*c) /s;
     d = y-y0;
-    if(d == 0)
+    if(( d<=0) && ( y > 240))
+    //if((d <= 500) && (y > 540 && (x <350 || x> 1300)))
     p = 1;
-    }
+    } 
     if(p==1)
     {
     pixelh.val[0] = 255;
-
 
     }
     else
@@ -577,10 +553,11 @@ ap_fixed<12,12> mag;
     canny_edges5 << pixelh;
     //f2<< pixelh;
     }
-    }  
-   hls::Scalar<3, unsigned char> color(0,0,255);
+    }   
+
+    hls::Scalar<3, unsigned char> color(0,0,255);
    hls::PaintMask(f2,canny_edges5,f3,color); 
-	// RGB_IMAGE to AXI stream 
+	// RGB_IMAGE to AXI stream   
 
     hls::Mat2AXIvideo(f3, output );
 }
