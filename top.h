@@ -49,6 +49,7 @@
 #define MAX_WIDTH  640
 #define MAX_HEIGHT 480
 
+
 // I/O Image Settings
 #define INPUT_IMAGE           "test_1080p.bmp"
 #define OUTPUT_IMAGE          "result_1080p.bmp"
@@ -65,6 +66,8 @@ typedef hls::Mat<MAX_HEIGHT, MAX_WIDTH, HLS_16UC3>     RGB_IMAGE_16;
 void gradient_decomposition( RGB_IMAGE& gx, RGB_IMAGE& gy, RGB_IMAGE_16& gd );
 void nonmax_suppression(RGB_IMAGE_16& gd, RGB_IMAGE& dst);
 void hysteresis(RGB_IMAGE& gd, RGB_IMAGE& dst, int threshold_low, int threshold_high);
+template<unsigned int max>
+void Hough_plotting(RGB_IMAGE &src, RGB_IMAGE &dst,hls::Polar_<  ap_fixed<16,3>, ap_fixed<12,12> > (&lines)[max]);
 
 // top level function for HW synthesis
 void image_filter(AXI_STREAM& src_axi, AXI_STREAM& dst_axi, int rows, int cols);
