@@ -1,31 +1,7 @@
-////////////////////////////////////////////////////////////////////////////
-// Canny Edge Detection Algorithm - HLS HW Implementation
-// Created by: Aadeetya Shreedhar and Alexander Wang
-// ECE 5775, Fall 2013
-// Dec 5th, 2013
-// 
-// This file contains all of the subroutines which perform the
-// Canny Edge Detection algorithm. It takes an image's pixel
-// stream and pushes it's pixels one by one through the functional
-// blocks below to perform the 5 stages of Canny Edge Detection.
-// In the end it produces an output image highlighting just the edges
-// of the input image.
-// 
-// All of the C++ code below is synthesizable and is intended to
-// be converted into RTL using Vivado HLS tools.
-//
-// This file is modified off a tutorial created by Xilinx, and as such
-// we retain the below copyright notice and disclaimer.
-////////////////////////////////////////////////////////////////////////////
-
-/***************************************************************************
-
-*   © Copyright 2013 Xilinx, Inc. All rights reserved. 
-
+/*copyright 2013 Xilinx, Inc. All rights reserved. 
 *   This file contains confidential and proprietary information of Xilinx,
 *   Inc. and is protected under U.S. and international copyright and other
 *   intellectual property laws. 
-
 *   DISCLAIMER
 *   This disclaimer is not a license and does not grant any rights to the
 *   materials distributed herewith. Except as otherwise provided in a valid
@@ -43,7 +19,6 @@
 *   as a result of any action brought by a third party) even if such damage
 *   or loss was reasonably foreseeable or Xilinx had been advised of the 
 *   possibility of the same. 
-
 *   CRITICAL APPLICATIONS 
 *   Xilinx products are not designed or intended to be fail-safe, or for use
 *   in any application requiring fail-safe performance, such as life-support
@@ -54,16 +29,14 @@
 *   assumes the sole risk and liability of any use of Xilinx products in Critical
 *   Applications, subject only to applicable laws and regulations governing 
 *   limitations on product liability. 
-
 *   THIS COPYRIGHT NOTICE AND DISCLAIMER MUST BE RETAINED AS PART OF THIS FILE AT 
 *   ALL TIMES.
-
 ***************************************************************************/
 #include "top.h"
 #include "ap_int.h"
 #include<stdio.h>
 #include<math.h>
-#include "cordic.h"
+//#include "cordic.h"
 //#include "cordic.cpp"
 
 
@@ -337,33 +310,35 @@ void hysteresis( RGB_IMAGE& src, RGB_IMAGE& dst, int threshold_low, int threshol
 }
 
 template<unsigned int max>
-void Hough_plotting(RGB_IMAGE &src, RGB_IMAGE &dst,hls::Polar_< ap_fixed<16,3>, ap_fixed<12,12> > (&lines)[max])
+void Hough_plotting(RGBSINGLE_IMAGE &src, RGBSINGLE_IMAGE &dst,hls::Polar_< float, float > (&lines)[max])
 {
   int p,q;
-  ap_fixed<16,3> c,s;
+  float c,s;
   typedef ap_fixed<12,12> pxtype;
-  pxtype y0,d;
-  hls::Scalar<3, unsigned char>pixelh;       //pixel to add to hough image
-  hls::Scalar<3, unsigned char>pixela;       //pixel to read image
+  //pxtype y0,d;
+  float y0, d;
+  hls::Scalar<1, unsigned char>pixelh;       //pixel to add to hough image
+  hls::Scalar<1, unsigned char>pixela;       //pixel to read image
 	HLS_SIZE_T rows = src.rows;
 	HLS_SIZE_T cols = src.cols;  
   
-for(pxtype y=0;y<rows;y++)
+for (int y=0;y<rows;y++)
     {
-     for(pxtype x=0;x<cols;x++)
+     for(int x=0;x<cols;x++)
       {
 
-#pragma HLS PIPELINE 
+//#pragma HLS PIPELINE 
         src >> pixela;
         p=0;
          if(pixela.val[0] != 0)
            {
-             for(int i=0;i<500;i++)
+             for(int i=0;i<max;i++)
               {
-               cordic(lines[i].angle, s, c);
+               //cordic(lines[i].angle, s, c);
+               hls::cordic::sin_cos_range_redux_cordic(lines[i].angle, s, c);
                y0 = (lines[i].rho - x*c) /s;           // We use the equation  rho = xcos(theta) + ySin(theta)  So we iterate throught the image to find out the (x,y) that match
                d = y-y0;                               //the rho,theta generated from houghlines and stored in lines.
-                 if(( d<=0) && ( y > 240))
+                 if((d <= 0) && ( y > 240))
                        p = 1;
                } 
                if(p==1)
@@ -389,12 +364,12 @@ void image_filter(AXI_STREAM& input, AXI_STREAM& output, int rows, int cols) {
 
 unsigned char element_hd; //Inserted this line 
 float a,b,x0;
-int p,q;
+int p;
 ap_fixed<16,3> c,s;
 typedef ap_fixed<12,12> pxtype;
 pxtype y0,d;
-int ip_counter =0;
-int op_counter =0;
+//int ip_counter =0;
+//int op_counter =0;
 
 //ap_fixed<16,3> theta;
 //ap_fixed<12,12> mag;  
@@ -420,13 +395,17 @@ int op_counter =0;
     RGB_IMAGE_16 grad_gd(rows, cols);
     RGB_IMAGE suppressed(rows, cols);
     RGB_IMAGE canny_edges(rows, cols);
-    RGB_IMAGE canny_edges1(rows, cols);    //inserted these lines 
-    RGB_IMAGE canny_edges2(rows, cols);
+    RGBSINGLE_IMAGE canny_edges_gray1(rows, cols);    //inserted these lines 
+    RGBSINGLE_IMAGE canny_edges_gray2(rows, cols);
+    RGB_IMAGE canny_edges_rgb1(rows, cols);
+    RGB_IMAGE canny_edges_rgb2(rows, cols);
+	  RGBSINGLE_IMAGE hough_image(rows, cols);
     RGB_IMAGE lane_edges(rows, cols);
     RGB_IMAGE srcimage1(rows, cols);
     RGB_IMAGE srcimage2(rows, cols);
     RGB_PIXEL pix(50, 50, 50);
     RGB_IMAGE finalimage(rows, cols);
+    RGB_IMAGE finalimage1(rows, cols);
     
   
 //#pragma HLS dataflow
@@ -448,21 +427,47 @@ int op_counter =0;
 	nonmax_suppression( grad_gd, suppressed );
  
 	// Perform hysteresis thresholding for edge tracing
-	hysteresis( suppressed, canny_edges, 80, 140 );
+	hysteresis( suppressed, canny_edges, 20, 30 );
 
-	hls::Duplicate( canny_edges, canny_edges1, canny_edges2);        //making multiple copies of canny edges for future purposes
-  
+//	hls::Scalar<3, unsigned char>pixele;
+//	hls::Scalar<1, unsigned char>pixelf;
+//	
+//	for (HLS_SIZE_T y = 0; y < rows; y++) {
+//      for (HLS_SIZE_T x = 0; x < cols; x++) {
+//      canny_edges>>pixele;
+//      pixelf.val[0]  = pixele.val[0];
+//      canny_edges1<<pixelf;
+//      }
+//      }
+//
+  hls::Duplicate( canny_edges, canny_edges_rgb1, canny_edges_rgb2);	
+  hls::CvtColor<HLS_RGB2GRAY>( canny_edges_rgb1, canny_edges_gray1 );
+  hls::CvtColor<HLS_RGB2GRAY>( canny_edges_rgb2, canny_edges_gray2 );
  
-  hls::Polar_< ap_fixed<16,3>, ap_fixed<12,12> >lines[500];  
+  hls::Polar_< float, float >lines[500];  
                                                                       
-  hls::HoughLines2<1,5>( canny_edges1, lines, 500 );              //Hough transform
+  hls::HoughLines2<1,1>( canny_edges_gray1, lines, 100 );              //Hough transform
    
-  Hough_plotting<500>(canny_edges2, lane_edges,lines);             //plot the hough lines
+  Hough_plotting<500>(canny_edges_gray2, hough_image,lines);             //plot the hough lines
    
+//  hls::Scalar<1, unsigned char>pixelg;
+//hls::Scalar<3, unsigned char>pixelh;
+//	
+//	for (HLS_SIZE_T y = 0; y < rows; y++) {
+//      for (HLS_SIZE_T x = 0; x < cols; x++) {
+//      hough_image>>pixelg;
+//      pixelh.val[0]  = pixelg.val[0];
+//      lane_edges<<pixelh;
+//      }
+//      }
+
+ hls::CvtColor<HLS_GRAY2RGB>( hough_image, lane_edges );
+  
+
   hls::Scalar<3, unsigned char> color(0,0,255);
   hls::PaintMask(srcimage2,lane_edges,finalimage,color); 
  
 	// RGB_IMAGE to AXI stream   
-
+ //hls::CvtColor<HLS_GRAY2RGB>( finalimage, finalimage1 );
     hls::Mat2AXIvideo(finalimage, output );
 }
