@@ -62,7 +62,7 @@ set_top image_filter
 
 # Select the files for hardware synthesis
 add_files top.cpp
-add_files cordic.cpp
+
 
 # Select the files required for the testbench
 add_files -tb test.cpp

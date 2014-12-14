@@ -6,7 +6,7 @@
 #include "ap_int.h"
 // Change the following types to ap_int OR ap_fixed for optimized implementations.
 typedef ap_fixed<16,3> theta_type;
-typedef ap_fixed<16,3> cos_sin_type;
+typedef ap_fixed<16,2> cos_sin_type;
 #else
 typedef double theta_type;
 typedef double cos_sin_type;
