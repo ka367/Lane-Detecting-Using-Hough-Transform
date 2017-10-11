@@ -330,15 +330,15 @@ for (int y=0;y<rows;y++)
 //#pragma HLS PIPELINE 
         src >> pixela;
         p=0;
-         if(pixela.val[0] != 0)
-           {
+         
+           
              for(int i=0;i<max;i++)
               {
                //cordic(lines[i].angle, s, c);
                hls::cordic::sin_cos_range_redux_cordic(lines[i].angle, s, c);
                y0 = (lines[i].rho - x*c) /s;           // We use the equation  rho = xcos(theta) + ySin(theta)  So we iterate throught the image to find out the (x,y) that match
                d = y-y0;                               //the rho,theta generated from houghlines and stored in lines.
-                 if((d <= 0) && ( y > 240))
+                 if((d <= 2) && ( d > -20))
                        p = 1;
                } 
                if(p==1)
@@ -349,10 +349,10 @@ for (int y=0;y<rows;y++)
                {
                 pixelh.val[0] = 0;
                }
-          }
-          else
-          {
-           pixelh.val[0] = 0;
+          
+          
+          
+           
           }
           dst << pixelh;
         }
